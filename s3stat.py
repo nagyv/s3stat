@@ -3,7 +3,7 @@
 S3 Stat
 =======
 
-This python module uses the really nice `goaccess <http://goaccess.prosoftcorp.com/>` utility
+This python module uses the really nice `goaccess <http://goaccess.prosoftcorp.com/>`_ utility
 to provide you with an amazing Amazon log file analyser tool that is relatively easy to install, and is extremely
 easy to extend.
 
@@ -19,16 +19,20 @@ This installs `s3stat.py` in your PYTHONPATH in case you would like to run it fr
 Quickstart
 ------------
 
+Install goaccess
+.................. 
+
+You should install `goaccess <http://goaccess.prosoftcorp.com/>`_
+
 Generating an AWS user
 ........................
 
 First you should create a user that has approriate rights to read your log files, and you should have its AWS access keys ready.
 
-# Log in to the `aws console <https://console.aws.amazon.com/iam/home?#users>`
-# Create a new user and select the option to generate an access key for the user 
-# Save the access key and secure keys, as these will be needed soon 
-# Open the *Permissions* tab for the user, and attach a new user policy. 
-    Select custom policy, and copy the following::
+#. Log in to the `aws console <https://console.aws.amazon.com/iam/home?#users>`_
+#. Create a new user and select the option to generate an access key for the user 
+#. Save the access key and secure keys, as these will be needed soon 
+#. Open the *Permissions* tab for the user, and attach a new user policy. Select custom policy, and copy the following::
 
         {
           "Statement": [

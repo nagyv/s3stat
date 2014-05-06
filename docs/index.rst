@@ -1,0 +1,1 @@
+.. automodule:: s3stat
