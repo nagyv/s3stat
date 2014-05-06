@@ -3,7 +3,7 @@ import s3stat
 
 setup(
     name="s3stat",
-    version="1.0.0",
+    version="1.0.1",
     description='An extensible Amazon S3 and Cloudfront log parser.',
     long_description=s3stat.__doc__,
     author="Viktor Nagy",
