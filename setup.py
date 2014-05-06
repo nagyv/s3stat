@@ -13,7 +13,8 @@ setup(
     zip_safe=False,
     install_requires=['boto'],
     py_modules=['s3stat'],
-    scripts=['s3stat.py']
+    scripts=['s3stat.py'],
+    keywords="s3stat amazon statistics goaccess"
     # tests_require=['pytest'],
     # cmdclass = {
     #     'test': PyTest,
