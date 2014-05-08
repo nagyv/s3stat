@@ -133,13 +133,13 @@ class S3Stat(object):
     that we can handle further.
     """
 
-    def __init__(self, input_bucket, input_path, date_filter, aws_keys=None):
+    def __init__(self, input_bucket, input_prefix, date_filter, aws_keys=None):
         """
         :param aws_keys: a list of (aws key, secret key)
         """
         self.input_bucket = input_bucket
-        self.input_path = input_path
         self.date_filter = date_filter
+        self.input_prefix = input_prefix + date_filter.strftime("%Y-%m-%d")
         self.aws_keys = aws_keys
 
     def _create_goconfig(self):
@@ -152,14 +152,6 @@ date_format %d/%b/%Y
 log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %^
 """)
         self.configfile.flush()
-
-    def is_needed(self, filename):
-        """
-        Only files that return true will be processed. 
-
-        By default the file name should start with `access_log` and should contain the date filtered.
-        """
-        return "access_log-" in filename and self.date_filter.strftime("%Y-%m-%d") in filename
 
     def concat_files(self, outfile, filename):
         with open(filename) as infile:
@@ -175,16 +167,14 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
             conn = S3Connection()
 
         mybucket = conn.get_bucket(self.input_bucket)
-
         tempdir = tempfile.mkdtemp()
-        for item in mybucket.list(prefix=self.input_path):
-            if self.is_needed(item.key):
-                local_file = os.path.join(tempdir, item.key.split("/")[-1])
-                logger.debug("Downloading %s to %s" % (item.key, local_file))
-                item.get_contents_to_filename(local_file)
-                yield local_file
+        for item in mybucket.list(prefix=self.input_prefix):
+            local_file = os.path.join(tempdir, item.key.split("/")[-1])
+            logger.debug("Downloading %s to %s" % (item.key, local_file))
+            item.get_contents_to_filename(local_file)
+            yield local_file
 
-    def process_results(self, json):
+    def process_results(self, json_obj):
         """
         This is the main method to be overwritten by implementors.
 
@@ -222,14 +212,26 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
             self.process_results(out)
         return True
 
+# def enable_logging(args):
+#     if args.aws_key and args.aws_secret:
+#         conn = S3Connection(aws_key, aws_secret)
+#     else:
+#         conn = S3Connection()
+
+#     mybucket = conn.get_bucket(args.input_bucket)
+#     mybucket.enable_logging(target_bucket=args.output_bucket, target_prefix=args.output_prefix)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Downloads logs from S3, and parses them with goaccess.")
 
     parser.add_argument("aws_key", help="Amazon identification key", default=None)
     parser.add_argument("aws_secret", help="Amazon identification key secret", default=None)
-    parser.add_argument("input_bucket", help="Input s3 path where the logs are to be found (s3://[BUCKET]/[PATH]/)")
-    parser.add_argument("input_path", help="Input s3 path where the logs are to be found (s3://[BUCKET]/[PATH]/)")
+    parser.add_argument("input_bucket", help="Input bucket where logs are stored")
+    parser.add_argument("input_prefix", help="Path inside the input bucket where logs are stored")
+    # Add logging related subcommand
+    # parser.add_argument("--output_bucket", help="Output bucket for logging")
+    # parser.add_argument("--output_prefix", help="Output prefix for generating log files in output bucket.", default="s3stat/access_log-")
     parser.add_argument("-o", "--output", help="Output format. One of html, json or csv.", default=None)
     parser.add_argument("-v", "--verbose", help="Verbose output", action="store_true", default=False)
     parser.add_argument("-d", "--date", help="The date to run the report on in YYYY-MM-DD format")
@@ -237,6 +239,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.verbose:
+        logging.basicConfig()
         logger.setLevel(logging.DEBUG)
 
     if args.date:
@@ -249,5 +252,5 @@ if __name__ == "__main__":
     else:
         aws_keys = None
 
-    processor = S3Stat(args.input_bucket, args.input_path, given_date, aws_keys)
+    processor = S3Stat(args.input_bucket, args.input_prefix, given_date, aws_keys)
     processor.run(args.output)
