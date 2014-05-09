@@ -24,6 +24,9 @@ Install goaccess
 
 You should install `goaccess <http://goaccess.prosoftcorp.com/>`_
 
+.. note::
+    Cloudfront log file processing requires goaccess 0.7.1+
+
 Generating an AWS user
 ........................
 
@@ -92,6 +95,7 @@ For further options you might run::
 
     s3stat.py -h
 
+
 Extending
 ----------
 
@@ -123,6 +127,7 @@ from datetime import datetime, date
 import argparse
 import tempfile
 import json
+import gzip
 import logging
 
 logger = logging.getLogger(__name__)
@@ -133,12 +138,17 @@ class S3Stat(object):
     that we can handle further.
     """
 
-    def __init__(self, input_bucket, input_prefix, date_filter, aws_keys=None):
+    def __init__(self, input_bucket, input_prefix, date_filter, aws_keys=None, is_cloudfront=False):
         """
+        :param input_bucket: the amazon bucket to download log files from
+        :param input_prefix: only log files with the given prefix will be downloaded
+        :param date_filter: only log files with prefix+date_filter will be downloaded
         :param aws_keys: a list of (aws key, secret key)
+        :param is_cloudfront: set to True for Cloudfront format processing, defaults to S3 format
         """
         self.input_bucket = input_bucket
         self.date_filter = date_filter
+        self.is_cloudfront = is_cloudfront
         self.input_prefix = input_prefix + date_filter.strftime("%Y-%m-%d")
         self.aws_keys = aws_keys
 
@@ -147,14 +157,27 @@ class S3Stat(object):
         Creates a temporary goaccessrc file with the necessary formatting
         """
         self.configfile = tempfile.NamedTemporaryFile()
-        self.configfile.write("""color_scheme 0
+        log_content = "color_scheme 0"
+        if self.is_cloudfront:
+            log_content += """
+date_format %Y-%m-%d
+log_format %d\t%^\t%^\t%b\t%h\t%^\t%^\t%r\t%s\t%R\t%u\t%^
+""" 
+        else:
+            log_content += """
 date_format %d/%b/%Y
 log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %^
-""")
+"""
+        self.configfile.write(log_content)
         self.configfile.flush()
 
     def concat_files(self, outfile, filename):
-        with open(filename) as infile:
+        def _open(filename):
+            if self.is_cloudfront:
+                return gzip.open(filename, 'rb')
+            else:
+                return open(filename)
+        with _open(filename) as infile:
             outfile.write(infile.read())
 
     def download_logs(self):
@@ -229,12 +252,13 @@ if __name__ == "__main__":
     parser.add_argument("aws_secret", help="Amazon identification key secret", default=None)
     parser.add_argument("input_bucket", help="Input bucket where logs are stored")
     parser.add_argument("input_prefix", help="Path inside the input bucket where logs are stored")
+    parser.add_argument("-c", "--cloudfront", help="Cloudfront log processing", action="store_true", default=False)
     # Add logging related subcommand
     # parser.add_argument("--output_bucket", help="Output bucket for logging")
     # parser.add_argument("--output_prefix", help="Output prefix for generating log files in output bucket.", default="s3stat/access_log-")
     parser.add_argument("-o", "--output", help="Output format. One of html, json or csv.", default=None)
     parser.add_argument("-v", "--verbose", help="Verbose output", action="store_true", default=False)
-    parser.add_argument("-d", "--date", help="The date to run the report on in YYYY-MM-DD format")
+    parser.add_argument("-d", "--date", help="The date to run the report on in YYYY-MM-DD format. Defaults to today.")
 
     args = parser.parse_args()
 
@@ -252,5 +276,5 @@ if __name__ == "__main__":
     else:
         aws_keys = None
 
-    processor = S3Stat(args.input_bucket, args.input_prefix, given_date, aws_keys)
+    processor = S3Stat(args.input_bucket, args.input_prefix, given_date, aws_keys, args.cloudfront)
     processor.run(args.output)
