@@ -129,6 +129,7 @@ import tempfile
 import json
 import gzip
 import logging
+import tempdir
 
 logger = logging.getLogger(__name__)
 
@@ -190,12 +191,12 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
             conn = S3Connection()
 
         mybucket = conn.get_bucket(self.input_bucket)
-        tempdir = tempfile.mkdtemp()
-        for item in mybucket.list(prefix=self.input_prefix):
-            local_file = os.path.join(tempdir, item.key.split("/")[-1])
-            logger.debug("Downloading %s to %s" % (item.key, local_file))
-            item.get_contents_to_filename(local_file)
-            yield local_file
+        with tempdir.TempDir() as directory:
+            for item in mybucket.list(prefix=self.input_prefix):
+                local_file = os.path.join(directory, item.key.split("/")[-1])
+                logger.debug("Downloading %s to %s" % (item.key, local_file))
+                item.get_contents_to_filename(local_file)
+                yield local_file
 
     def process_results(self, json_obj):
         """
@@ -233,6 +234,7 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
             if format == "json":
                 out = json.loads(out)
             self.process_results(out)
+
         return True
 
 # def enable_logging(args):
