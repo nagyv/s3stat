@@ -6,7 +6,7 @@ except ImportError:
     doc = "The docs are only available when the package is already installed. Sorry for this."
 setup(
     name="s3stat",
-    version="2.0.0",
+    version="2.0.1",
     description='An extensible Amazon S3 and Cloudfront log parser.',
     long_description=doc,
     author="Viktor Nagy",
