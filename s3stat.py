@@ -109,10 +109,16 @@ a single class that you can subclass to process the results in json format.::
         def process(self, json):
             print json
 
+        def process_error(self, exception, data=None):
+            print data
+            raise exception
+
     mytask = MyS3Stat(bukcet, log_path, for_date, (aws_key, aws_secret))
     mytask.run()
 
 Where the `aws_*` parameters are optional, if missing then they are taken from the environment variables as provided by boto.
+The process_error method currently is called only when the JSON decoding fails, thus `data` is the non-decodeable string, while
+exception is the ValueError raised by Python.
 
 ToDo
 -----
@@ -198,13 +204,24 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
                 item.get_contents_to_filename(local_file)
                 yield local_file
 
-    def process_results(self, json_obj):
+    def process_results(self, json_obj, error=None):
         """
         This is the main method to be overwritten by implementors.
 
         :param json: A JSON object result from goaccess to be processed further.
         """
         logger.debug(json)
+
+    def process_error(self, exc, data=None):
+        """
+        This is the error handling method to be overwritten by implementers.
+
+        :param exc: the exception object raised and catched somewhere during processing
+        :param data: an optional attribute that might help further processing
+        :returns: the returned value will be returned from the main `run` method.
+        """
+        print data
+        raise exc
 
     def run(self, format="json"):
         """
@@ -232,7 +249,11 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
 
         if format:
             if format == "json":
-                out = json.loads(out)
+                try:
+                    out = json.loads(out)
+                except ValueError as e:
+                    return self.process_error(e, out)
+                    
             self.process_results(out)
 
         return True
