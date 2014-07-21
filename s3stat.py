@@ -127,6 +127,8 @@ ToDo
 
 """
 import os
+import threading
+import random
 from boto.s3.connection import S3Connection
 import subprocess
 from datetime import datetime, date
@@ -196,13 +198,25 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
         else:
             conn = S3Connection()
 
+        files = []
         mybucket = conn.get_bucket(self.input_bucket)
         with tempdir.TempDir() as directory:
             for item in mybucket.list(prefix=self.input_prefix):
                 local_file = os.path.join(directory, item.key.split("/")[-1])
                 logger.debug("Downloading %s to %s" % (item.key, local_file))
-                item.get_contents_to_filename(local_file)
-                yield local_file
+                thread = threading.Thread(target=item.get_contents_to_filename, args=(local_file,))
+                thread.start()
+                files.append((thread,local_file))
+
+            elms = range(len(files))
+            elemslen = len(elms)
+            while elemslen:
+                curr = random.choice(elms)
+                thread, file  = files[curr]
+                if not thread.is_alive():
+                    yield file
+                    elms.remove(curr)
+                    elemslen -= 1
 
     def process_results(self, json_obj, error=None):
         """
