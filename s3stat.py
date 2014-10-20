@@ -126,9 +126,7 @@ ToDo
 * provide a command that adds logging to specified buckets and cloudfront distributions
 
 """
-import os
 import threading
-import random
 from boto.s3.connection import S3Connection
 import subprocess
 from datetime import datetime, date
@@ -137,15 +135,65 @@ import tempfile
 import json
 import gzip
 import logging
-import tempdir
+import Queue
+from StringIO import StringIO
 
+logging.basicConfig()
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+class ConcatThread(threading.Thread):
+    """
+    This threads creates the concatenated log file
+
+    Following http://stackoverflow.com/questions/11983938/python-appending-to-same-file-from-multiple-threds
+    """
+
+    def __init__(self, outqueue, outfile):
+        threading.Thread.__init__(self)
+        self.queue = outqueue
+        self.outfile = outfile
+
+    def run(self):
+        while True:
+            data = self.queue.get()
+            self.outfile.write(data)
+            self.queue.task_done()
+
+class DownloadLogThread(threading.Thread):
+    """
+    This thread downloads the small log snippets, and passes their content towards
+    the ConcatThread for further processing
+    """
+
+    def __init__(self, in_queue, out_queue, is_cloudfront):
+        threading.Thread.__init__(self)
+        self.in_queue = in_queue
+        self.out_queue = out_queue
+        self.is_cloudfront = is_cloudfront
+
+    def read_log(self, item):
+        data = item.get_contents_as_string()
+        if self.is_cloudfront:
+            f = StringIO(data)
+            data = gzip.GzipFile(fileobj=f, mode='rb').read()
+            f.close()
+        return data
+
+    def run(self):
+        while True:
+            item = self.in_queue.get()
+            data = self.read_log(item)
+            self.out_queue.put(data)
+            self.in_queue.task_done()
+
 
 class S3Stat(object):
     """
     We download the log files from S3, then concatenate them, and pass the results to goaccess. It gives back a JSON 
     that we can handle further.
     """
+    _num_threads = 100
 
     def __init__(self, input_bucket, input_prefix, date_filter, aws_keys=None, is_cloudfront=False):
         """
@@ -171,7 +219,7 @@ class S3Stat(object):
             log_content += """
 date_format %Y-%m-%d
 log_format %d\t%^\t%^\t%b\t%h\t%^\t%^\t%r\t%s\t%R\t%u\t%^
-""" 
+"""
         else:
             log_content += """
 date_format %d/%b/%Y
@@ -180,16 +228,7 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
         self.configfile.write(log_content)
         self.configfile.flush()
 
-    def concat_files(self, outfile, filename):
-        def _open(filename):
-            if self.is_cloudfront:
-                return gzip.open(filename, 'rb')
-            else:
-                return open(filename)
-        with _open(filename) as infile:
-            outfile.write(infile.read())
-
-    def download_logs(self):
+    def download_logs(self, outfile):
         """
         Downloads logs from S3 using Boto.
         """
@@ -198,25 +237,31 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
         else:
             conn = S3Connection()
 
-        files = []
         mybucket = conn.get_bucket(self.input_bucket)
-        with tempdir.TempDir() as directory:
-            for item in mybucket.list(prefix=self.input_prefix):
-                local_file = os.path.join(directory, item.key.split("/")[-1])
-                logger.debug("Downloading %s to %s" % (item.key, local_file))
-                thread = threading.Thread(target=item.get_contents_to_filename, args=(local_file,))
-                thread.start()
-                files.append((thread,local_file))
+        log_file_queue = Queue.Queue()
+        log_string_queue = Queue.Queue()
+        try:
+            #spawn the thread for parallel downloads
+            for i in range(0, self._num_threads):
+                t = DownloadLogThread(log_file_queue, log_string_queue, self.is_cloudfront)
+                t.setDaemon(True)
+                t.start()
 
-            elms = range(len(files))
-            elemslen = len(elms)
-            while elemslen:
-                curr = random.choice(elms)
-                thread, file  = files[curr]
-                if not thread.is_alive():
-                    yield file
-                    elms.remove(curr)
-                    elemslen -= 1
+            t = ConcatThread(log_string_queue, outfile)
+            t.setDaemon(True)
+            t.start()
+
+            for item in mybucket.list(prefix=self.input_prefix):
+                log_file_queue.put(item)
+
+            # wait until the queues are emptied
+            log_file_queue.join()
+            log_string_queue.join()
+        finally:
+            # finally we can clear our threads
+            for t in threading.enumerate():
+                del t
+            logger.debug("Downloading of logs completed")
 
     def process_results(self, json_obj, error=None):
         """
@@ -224,7 +269,8 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
 
         :param json: A JSON object result from goaccess to be processed further.
         """
-        logger.debug(json)
+        open('s3output.html', 'w').write(json_obj)
+        # logger.debug(json.dumps(json_obj))
 
     def process_error(self, exc, data=None):
         """
@@ -248,11 +294,8 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
         :param format: String optional, one of json, html or csv
         """
         self._create_goconfig()
-        logs = self.download_logs()
         with tempfile.NamedTemporaryFile() as tempLog:
-            for downloaded in logs:
-                self.concat_files(tempLog, downloaded)
-
+            self.download_logs(tempLog)
             tempLog.flush()  # needed to have the temp file written for sure
             logger.debug("Creating report")
             command = ["goaccess", "-f", tempLog.name, "-p", self.configfile.name]
