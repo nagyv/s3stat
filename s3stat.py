@@ -136,6 +136,7 @@ import json
 import gzip
 import logging
 import Queue
+import ssl
 from StringIO import StringIO
 
 logging.basicConfig()
@@ -182,10 +183,19 @@ class DownloadLogThread(threading.Thread):
 
     def run(self):
         while True:
-            item = self.in_queue.get()
-            data = self.read_log(item)
-            self.out_queue.put(data)
-            self.in_queue.task_done()
+            try:
+                item = self.in_queue.get()
+                data = self.read_log(item)
+                self.out_queue.put(data)
+                self.in_queue.task_done()
+            except Queue.Empty:
+                self.join()
+            except ssl.SSLError:
+                logger.error('Error while downloading the stats',
+                             extra={
+                                 'stack': True,
+                                 })
+                continue
 
 
 class S3Stat(object):
@@ -310,7 +320,7 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
                     out = json.loads(out)
                 except ValueError as e:
                     return self.process_error(e, out)
-                    
+
             self.process_results(out)
 
         return True
