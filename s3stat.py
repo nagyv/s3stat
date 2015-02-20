@@ -106,14 +106,14 @@ a single class that you can subclass to process the results in json format.::
 
     class MyS3Stat(s3stat.S3Stat):
 
-        def process(self, json):
+        def process_results(self, json):
             print json
 
         def process_error(self, exception, data=None):
             print data
             raise exception
 
-    mytask = MyS3Stat(bukcet, log_path, for_date, (aws_key, aws_secret))
+    mytask = MyS3Stat(bucket, log_path, for_date, (aws_key, aws_secret))
     mytask.run()
 
 Where the `aws_*` parameters are optional, if missing then they are taken from the environment variables as provided by boto.
