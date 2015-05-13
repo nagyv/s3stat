@@ -7,7 +7,7 @@ except ImportError:
     
 setup(
     name="s3stat",
-    version="2.3.0",
+    version="2.3.1",
     description='An extensible Amazon S3 and Cloudfront log parser.',
     long_description=doc,
     author="Viktor Nagy",
