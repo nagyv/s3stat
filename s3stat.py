@@ -6,6 +6,7 @@ S3 Stat
 This python module uses the really nice `goaccess <http://goaccess.prosoftcorp.com/>`_ utility
 to provide you with an amazing Amazon log file analyser tool that is relatively easy to install, and is extremely
 easy to extend.
+GOACCESS version needed: 0.8.5 (it doesn't work with 0.9+)
 
 Installation
 -------------
@@ -126,6 +127,7 @@ ToDo
 * provide a command that adds logging to specified buckets and cloudfront distributions
 
 """
+import ssl
 import threading
 from boto.s3.connection import S3Connection
 import subprocess
@@ -136,7 +138,6 @@ import json
 import gzip
 import logging
 import Queue
-import ssl
 from StringIO import StringIO
 
 logging.basicConfig()
@@ -203,7 +204,7 @@ class S3Stat(object):
     We download the log files from S3, then concatenate them, and pass the results to goaccess. It gives back a JSON 
     that we can handle further.
     """
-    _num_threads = 100
+    _num_threads = 10
 
     def __init__(self, input_bucket, input_prefix, date_filter, aws_keys=None, is_cloudfront=False):
         """
@@ -256,14 +257,12 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
                 t = DownloadLogThread(log_file_queue, log_string_queue, self.is_cloudfront)
                 t.setDaemon(True)
                 t.start()
-
             t = ConcatThread(log_string_queue, outfile)
             t.setDaemon(True)
             t.start()
 
             for item in mybucket.list(prefix=self.input_prefix):
                 log_file_queue.put(item)
-
             # wait until the queues are emptied
             log_file_queue.join()
             log_string_queue.join()
@@ -313,14 +312,13 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
                 command += [ "-o", format]
             server = subprocess.Popen(command, stdout=subprocess.PIPE if format else None)
             out, err = server.communicate()
-
         if format:
             if format == "json":
                 try:
                     out = json.loads(out)
                 except ValueError as e:
                     return self.process_error(e, out)
-
+                    
             self.process_results(out)
 
         return True
