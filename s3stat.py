@@ -229,11 +229,13 @@ class S3Stat(object):
         if self.is_cloudfront:
             log_content += """
 date_format %Y-%m-%d
+time_format %H:%M:%S
 log_format %d\t%^\t%^\t%b\t%h\t%^\t%^\t%r\t%s\t%R\t%u\t%^
 """
         else:
             log_content += """
 date_format %d/%b/%Y
+time_format %H:%M:%S
 log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %^
 """
         self.configfile.write(log_content)
