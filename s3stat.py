@@ -3,10 +3,10 @@
 S3 Stat
 =======
 
-This python module uses the really nice `goaccess <http://goaccess.prosoftcorp.com/>`_ utility
+This python module uses the really nice `goaccess <http://goaccess.io/>`_ utility
 to provide you with an amazing Amazon log file analyser tool that is relatively easy to install, and is extremely
 easy to extend.
-GOACCESS version needed: 0.8.5 (it doesn't work with 0.9+)
+GOACCESS version needed: 0.8.5
 
 Installation
 -------------
@@ -23,7 +23,7 @@ Quickstart
 Install goaccess
 .................. 
 
-You should install `goaccess <http://goaccess.prosoftcorp.com/>`_
+You should install `goaccess <http://goaccess.io/>`_
 
 .. note::
     Cloudfront log file processing requires goaccess 0.7.1+
