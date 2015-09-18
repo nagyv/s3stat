@@ -1,7 +1,7 @@
 S3 Stat
 =======
 
-This python module uses the really nice `goaccess <http://goaccess.prosoftcorp.com/>` utility
+This python module uses the really nice `goaccess <http://goaccess.io/>` utility
 to provide you with an amazing Amazon log file analyser tool that is relatively easy to install, and is extremely
 easy to extend.
 
