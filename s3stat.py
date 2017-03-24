@@ -12,7 +12,7 @@ Installation
 -------------
 
 ::
-    
+
     pip install s3stat
 
 This installs `s3stat.py` in your PYTHONPATH in case you would like to run it from the command line.
@@ -21,7 +21,7 @@ Quickstart
 ------------
 
 Install goaccess
-.................. 
+..................
 
 You should install `goaccess <http://goaccess.io/>`_
 
@@ -34,8 +34,8 @@ Generating an AWS user
 First you should create a user that has approriate rights to read your log files, and you should have its AWS access keys ready.
 
 #. Log in to the `aws console <https://console.aws.amazon.com/iam/home?#users>`_
-#. Create a new user and select the option to generate an access key for the user 
-#. Save the access key and secure keys, as these will be needed soon 
+#. Create a new user and select the option to generate an access key for the user
+#. Save the access key and secure keys, as these will be needed soon
 #. Open the *Permissions* tab for the user, and attach a new user policy. Select custom policy, and copy the following::
 
         {
@@ -78,19 +78,19 @@ First you should create a user that has approriate rights to read your log files
           ]
         }
 
-Set up logging in your buckets 
-............................... 
+Set up logging in your buckets
+...............................
 
-First you should ask Amazon to generate logs for your buckets and cloudfront distributions. 
+First you should ask Amazon to generate logs for your buckets and cloudfront distributions.
 
 Run this script
-................ 
+................
 
 ::
 
     s3stat.py <aws key> <aws secret> <bucket> <log_path>
 
-This will download all the log files for today, and start a goaccess instance in your console. 
+This will download all the log files for today, and start a goaccess instance in your console.
 
 For further options you might run::
 
@@ -100,7 +100,7 @@ For further options you might run::
 Extending
 ----------
 
-Actually s3stat was designed to be easy to add to your pythonic workflow, as a result it defines 
+Actually s3stat was designed to be easy to add to your pythonic workflow, as a result it defines
 a single class that you can subclass to process the results in json format.::
 
     import s3stat
@@ -201,7 +201,7 @@ class DownloadLogThread(threading.Thread):
 
 class S3Stat(object):
     """
-    We download the log files from S3, then concatenate them, and pass the results to goaccess. It gives back a JSON 
+    We download the log files from S3, then concatenate them, and pass the results to goaccess. It gives back a JSON
     that we can handle further.
     """
     _num_threads = 10
@@ -228,15 +228,11 @@ class S3Stat(object):
         log_content = "color_scheme 0"
         if self.is_cloudfront:
             log_content += """
-date_format %Y-%m-%d
-time_format %H:%M:%S
-log_format %d\t%^\t%^\t%b\t%h\t%^\t%^\t%r\t%s\t%R\t%u\t%^
+log_format CLOUDFRONT
 """
         else:
             log_content += """
-date_format %d/%b/%Y
-time_format %H:%M:%S
-log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %^
+log_format AWSS3
 """
         self.configfile.write(log_content)
         self.configfile.flush()
@@ -296,9 +292,9 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
 
     def run(self, format="json"):
         """
-        This runs the whole machinery, and calls the process_results method if format was given. 
+        This runs the whole machinery, and calls the process_results method if format was given.
 
-        By default it runs the goaccess script, and shows the results in the terminal. 
+        By default it runs the goaccess script, and shows the results in the terminal.
         In json format is requested, process_results is called with the corresponding JSON dict. Otherwise
         it's called with a simple string.
 
@@ -320,7 +316,7 @@ log_format %^ %^ [%d:%^] %h %^ %^ %^ %^ "%^ %r %^" %s %^ %b %^ %^ %^ "%^" "%u" %
                     out = json.loads(out)
                 except ValueError as e:
                     return self.process_error(e, out)
-                    
+
             self.process_results(out)
 
         return True
